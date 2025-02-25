@@ -1,0 +1,65 @@
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+        <title>Отправка тестовых данных</title>
+        <style>
+            form {
+                width: fit-content;
+                display: flex;
+                flex-direction: column;
+                margin: 0 auto;
+            }
+        </style>
+    </head>
+    <body>
+        <div style="display: flex;">
+            <div style="width: 50%;">
+                <form id="save_frm" action="/_api/facts/save_fact" method="post" enctype="application/x-www-form-urlencoded">
+                    <input type="date" name="period_start" value="2024-12-01">
+                    <input type="date" name="period_end" value="2024-12-31">
+                    <input type="text" name="period_key" value="month">
+                    <input type="number" name="indicator_to_mo_id" value="227373">
+                    <input type="number" name="indicator_to_mo_fact_id" value="0">
+                    <input type="number" name="value" value="1">
+                    <input type="date" name="fact_time" value="2024-12-31">
+                    <input type="number" name="is_plan" value="0">
+                    <input type="number" name="auth_user_id" value="40">
+                    <input type="text" name="comment" value="Paraschenko">
+                </form>
+                <div style="display: flex; flex-direction: column; width: fit-content; margin: auto; margin-top: auto; margin-top: 1em;">
+                    <input id="save_count" min="1" max="10" type="number" value="1">
+                    <button id="save_btn">Отправить раз</button>
+                </div>
+            </div>
+            <div style="width: 50%;">
+                <form action="/_api/indicators/get_facts" method="post" enctype="application/x-www-form-urlencoded">
+                    <input type="date" name="period_start" value="2024-12-01">
+                    <input type="date" name="period_end" value="2024-12-31">
+                    <input type="text" name="period_key" value="month">
+                    <input type="number" name="indicator_to_mo_id" value="227373">
+                    <button id="check_btn">Проверить</button>
+                </form>
+            </div>
+        </div>
+
+    <script>
+        const saveBtn = document.getElementById('save_btn')
+        const saveCount = document.getElementById('save_count')
+        const saveFrm = document.getElementById('save_frm')
+        saveBtn.onclick = function () {
+            saveBtn.disabled = true
+            const formData = new FormData(saveFrm);
+            const urlEncodedData = new URLSearchParams(formData).toString();
+            for (let i = 0; i < parseInt(saveCount.value) ; i++) {
+                fetch(saveFrm.action, {
+                    method: saveFrm.method,
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    body: urlEncodedData
+                })
+            }
+        }
+    </script>
+    </body>
+</html>
