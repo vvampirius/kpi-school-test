@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const VERSION = `0.1`
+const VERSION = `0.2`
 
 var (
 	ErrorLog = log.New(os.Stderr, `error#`, log.Lshortfile)
@@ -42,6 +42,7 @@ type DataElement struct {
 type Buffer interface {
 	Add(DataElement)        // добавляем данные в буфер
 	GetFirst() *DataElement // извелакаем первые (наиболе старые данные)
+	GetSize() int           // возвращаем размер буффера
 	RemoveFirst()           // удаляем первые данные (после передачи по назначениею)
 }
 
@@ -81,6 +82,7 @@ func main() {
 		body, _ := io.ReadAll(r.Body)
 		fmt.Println(string(body))
 	})
+	http.HandleFunc("/buffer_size", core.bufferSizeHttpHandler)
 	http.HandleFunc("/_api/facts/save_fact", core.httpHandler)
 	http.HandleFunc("/_api/indicators/get_facts", core.getFactsHttpHandler)
 	http.HandleFunc("/favicon.ico", http.NotFound)

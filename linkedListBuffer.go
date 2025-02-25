@@ -24,6 +24,19 @@ func (llb *LinkedListBuffer) GetFirst() *DataElement {
 	return llb.First
 }
 
+func (llb *LinkedListBuffer) GetSize() int {
+	count := 0
+	data := llb.First
+	for {
+		if data == nil {
+			break
+		}
+		count++
+		data = data.next
+	}
+	return count
+}
+
 func (llb *LinkedListBuffer) RemoveFirst() {
 	if llb.First == nil {
 		return

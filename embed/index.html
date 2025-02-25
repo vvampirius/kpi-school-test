@@ -30,6 +30,7 @@
                     <input id="save_count" min="1" max="10" type="number" value="1">
                     <button id="save_btn">Отправить раз</button>
                 </div>
+                <div style="width: fit-content; margin: auto; margin-top: auto; margin-top: 1em;">Размер буффера: <div id="buffer_size" style="display: inline;">?</div></div>
             </div>
             <div style="width: 50%;">
                 <form action="/_api/indicators/get_facts" method="post" enctype="application/x-www-form-urlencoded">
@@ -47,7 +48,6 @@
         const saveCount = document.getElementById('save_count')
         const saveFrm = document.getElementById('save_frm')
         saveBtn.onclick = function () {
-            saveBtn.disabled = true
             const formData = new FormData(saveFrm);
             const urlEncodedData = new URLSearchParams(formData).toString();
             for (let i = 0; i < parseInt(saveCount.value) ; i++) {
@@ -60,6 +60,13 @@
                 })
             }
         }
+
+        const bufferSize = document.getElementById('buffer_size')
+        const eventSource = new EventSource('/buffer_size');
+        eventSource.onmessage = function(event) {
+            bufferSize.textContent = event.data
+        }
+
     </script>
     </body>
 </html>

@@ -13,11 +13,27 @@ import (
 )
 
 type Core struct {
+	bufferSizeChan      chan int
 	resendLoopStarted   bool // не даёт запуститься нескольким resendLoop()
 	Buffer              Buffer
 	SaveFactBearerToken string
 	SaveFactUrl         string
 	SaveFactInterval    time.Duration
+}
+
+func (core *Core) bufferSizeHttpHandler(w http.ResponseWriter, r *http.Request) {
+	DebugLog.Printf("%s %s %s '%s'", r.RemoteAddr, r.Method, r.RequestURI, r.UserAgent())
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	core.bufferSizeChan = make(chan int, 1)
+	core.bufferSizeChan <- core.Buffer.GetSize()
+	for size := range core.bufferSizeChan {
+		if _, err := fmt.Fprintf(w, "data: %d\n\n", size); err != nil {
+			ErrorLog.Println(err.Error())
+		}
+		w.(http.Flusher).Flush()
+	}
 }
 
 func (core *Core) getFactsHttpHandler(w http.ResponseWriter, r *http.Request) {
@@ -124,6 +140,13 @@ func (core *Core) resendLoop() {
 	DebugLog.Println("Starting resend loop")
 	go func() {
 		for {
+			// нотифицируем фронтенд о размере буфера
+			go func() {
+				if core.bufferSizeChan != nil {
+					core.bufferSizeChan <- core.Buffer.GetSize()
+				}
+			}()
+
 			data := core.Buffer.GetFirst()
 			if data == nil {
 				core.resendLoopStarted = false
