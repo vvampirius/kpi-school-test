@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/gorilla/schema"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -17,10 +15,14 @@ type Core struct {
 	resendLoopStarted   bool // не даёт запуститься нескольким resendLoop()
 	Buffer              Buffer
 	SaveFactBearerToken string
-	SaveFactUrl         string
+	SaveFactDomain      string
 	SaveFactInterval    time.Duration
 }
 
+// bufferSizeHttpHandler
+//
+// Данный http-хэндлер отправляет фронтенду в EventStream состояние размера буффера. Вызывается из resendLoop().
+// Для наглядности, стоит запускать программу с ключом `-i 2000`
 func (core *Core) bufferSizeHttpHandler(w http.ResponseWriter, r *http.Request) {
 	DebugLog.Printf("%s %s %s '%s'", r.RemoteAddr, r.Method, r.RequestURI, r.UserAgent())
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -36,6 +38,10 @@ func (core *Core) bufferSizeHttpHandler(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// getFactsHttpHandler
+//
+// Данный http-хэндлер нужен просто, что бы из фронтенда получить JSON с результатами попадания данных на конечный
+// сервер.
 func (core *Core) getFactsHttpHandler(w http.ResponseWriter, r *http.Request) {
 	DebugLog.Printf("%s %s %s '%s'", r.RemoteAddr, r.Method, r.RequestURI, r.UserAgent())
 	req, err := http.NewRequest(http.MethodPost, "https://development.kpi-drive.ru/_api/indicators/get_facts", r.Body)
@@ -54,65 +60,50 @@ func (core *Core) getFactsHttpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer resp.Body.Close()
-	w.Header().Add("Content-Disposition", "attachment; filename=\"response.json\"")
+	//w.Header().Add("Content-Disposition", "attachment; filename=\"response.json\"")
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
 }
 
+// httpHandler
+//
+// Основной http-хэндлер, который получает запрос от клиента, добавляет его в буффер, и вызывает цикл пересылки.
 func (core *Core) httpHandler(w http.ResponseWriter, r *http.Request) {
 	DebugLog.Printf("%s %s %s '%s'", r.RemoteAddr, r.Method, r.RequestURI, r.UserAgent())
-	var data DataElement
-	var decoder = schema.NewDecoder()
-	contentType := r.Header.Get("Content-Type")
-	if contentType == "application/x-www-form-urlencoded" {
-		err := r.ParseForm()
-		if err != nil {
-			http.Error(w, "Invalid form", http.StatusBadRequest)
-			return
-		}
-		err = decoder.Decode(&data, r.Form)
-		if err != nil {
-			ErrorLog.Println(err.Error())
-			http.Error(w, "Error parsing form", http.StatusInternalServerError)
-			return
-		}
-	} else if strings.HasPrefix(contentType, "multipart/form-data") {
-		err := r.ParseMultipartForm(1024)
-		if err != nil {
-			ErrorLog.Println(err.Error())
-			http.Error(w, "Invalid form", http.StatusBadRequest)
-			return
-		}
-		err = decoder.Decode(&data, r.MultipartForm.Value)
-		if err != nil {
-			ErrorLog.Println(err.Error())
-			http.Error(w, "Error parsing form", http.StatusInternalServerError)
-			return
-		}
-	} else {
-		http.Error(w, "Invalid content type", http.StatusBadRequest)
+	if r.RequestURI == `/` {
+		w.Write(indexHtml)
 		return
 	}
-	core.Buffer.Add(data) // добавляем данные в буфер
-	core.resendLoop()     // вызываем функцию отправки
-	//DebugLog.Printf("Parsed Data: %+v\n", data)
+	payload, err := io.ReadAll(r.Body)
+	if err != nil {
+		ErrorLog.Println(err.Error())
+		return
+	}
+	bufferItem := BufferItem{
+		Uri:         r.RequestURI,
+		ContentType: r.Header.Get("Content-Type"),
+		Payload:     payload,
+	}
+	core.Buffer.Add(bufferItem) // добавляем данные в буфер
+	core.resendLoop()           // вызываем функцию отправки
 }
 
-func (core *Core) resend(data *DataElement) error {
-	DebugLog.Printf("Trying to send: %v", *data)
-	encoder := schema.NewEncoder()
-	values := url.Values{}
-	if err := encoder.Encode(data, values); err != nil {
-		ErrorLog.Println(err.Error())
-		return err
+// resend
+//
+// Функция, которая делает отправку записи буффера на сервер назначения.
+func (core *Core) resend(bufferItem *BufferItem) error {
+	resendUrl := core.SaveFactDomain
+	if !strings.HasSuffix(resendUrl, "/test") { // Если домен назачения не, к примеру, http://localhost:808/test , то добавляем к не му URI, который был в исходном запросе
+		resendUrl = resendUrl + bufferItem.Uri
 	}
-	body := bytes.NewBufferString(values.Encode())
-	req, err := http.NewRequest(http.MethodPost, core.SaveFactUrl, body)
+	DebugLog.Printf("Trying to send '%s' to %s", bufferItem.ContentType, resendUrl)
+	body := bytes.NewBuffer(bufferItem.Payload)
+	req, err := http.NewRequest(http.MethodPost, resendUrl, body)
 	if err != nil {
 		ErrorLog.Println("Error sending request:", err.Error())
 		return err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Content-Type", bufferItem.ContentType)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", core.SaveFactBearerToken))
 	req.Header.Set("User-Agent", "kpi-school-test (https://github.com/vvampirius/kpi-school-test)")
 	client := http.Client{
@@ -132,6 +123,11 @@ func (core *Core) resend(data *DataElement) error {
 	return nil
 }
 
+// resendLoop()
+//
+// Цикл в go-рутине, который читает FIFO буфер, и вызывает функцию resend()
+//
+// Можно вызывать многократно - если уже запущен, то вторая копия не запустится.
 func (core *Core) resendLoop() {
 	if core.resendLoopStarted { // выходим, если уже стартовали
 		return
@@ -163,10 +159,10 @@ func (core *Core) resendLoop() {
 	}()
 }
 
-func NewCore(buffer Buffer, saveFactUrl string, saveFactBearer string, saveFactInterval int) *Core {
+func NewCore(buffer Buffer, saveFactDomain string, saveFactBearer string, saveFactInterval int) *Core {
 	core := Core{
 		Buffer:              buffer,
-		SaveFactUrl:         saveFactUrl,
+		SaveFactDomain:      saveFactDomain,
 		SaveFactBearerToken: saveFactBearer,
 		SaveFactInterval:    time.Duration(saveFactInterval) * time.Millisecond,
 	}

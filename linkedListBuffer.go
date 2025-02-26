@@ -4,11 +4,11 @@ import "sync"
 
 type LinkedListBuffer struct {
 	mu    sync.Mutex
-	First *DataElement
-	Last  *DataElement
+	First *BufferItem
+	Last  *BufferItem
 }
 
-func (llb *LinkedListBuffer) Add(data DataElement) {
+func (llb *LinkedListBuffer) Add(data BufferItem) {
 	llb.mu.Lock()
 	defer llb.mu.Unlock()
 	if llb.Last == nil { // в кэше ничего нет
@@ -20,7 +20,7 @@ func (llb *LinkedListBuffer) Add(data DataElement) {
 	llb.Last = &data      // заменяем ссылку на последни
 }
 
-func (llb *LinkedListBuffer) GetFirst() *DataElement {
+func (llb *LinkedListBuffer) GetFirst() *BufferItem {
 	return llb.First
 }
 

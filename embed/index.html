@@ -9,11 +9,30 @@
                 flex-direction: column;
                 margin: 0 auto;
             }
+            #check_btn {
+                margin: auto;
+                display: block;
+                margin-top: 2px;
+            }
+            #check_tbl {
+                margin: auto;
+                margin-top: 1em;
+            }
         </style>
     </head>
     <body>
         <div style="display: flex;">
             <div style="width: 50%;">
+                <fieldset id="enctype_sel" style="width: fit-content; padding: 3px; border-radius: 5px; margin: auto; margin-bottom: auto; margin-bottom: 1em;">
+                    <div>
+                        <input type="radio" id="urlencoded" name="enctype" value="application/x-www-form-urlencoded" checked />
+                        <label for="urlencoded">application/x-www-form-urlencoded</label>
+                    </div>
+                    <div>
+                        <input type="radio" id="multipart" name="enctype" value="multipart/form-data" />
+                        <label for="multipart">multipart/form-data</label>
+                    </div>
+                </fieldset>
                 <form id="save_frm" action="/_api/facts/save_fact" method="post" enctype="application/x-www-form-urlencoded">
                     <input type="date" name="period_start" value="2024-12-01">
                     <input type="date" name="period_end" value="2024-12-31">
@@ -33,13 +52,14 @@
                 <div style="width: fit-content; margin: auto; margin-top: auto; margin-top: 1em;">Размер буффера: <div id="buffer_size" style="display: inline;">?</div></div>
             </div>
             <div style="width: 50%;">
-                <form action="/_api/indicators/get_facts" method="post" enctype="application/x-www-form-urlencoded">
+                <form id="check_frm" action="/_api/indicators/get_facts" method="post" enctype="application/x-www-form-urlencoded">
                     <input type="date" name="period_start" value="2024-12-01">
                     <input type="date" name="period_end" value="2024-12-31">
                     <input type="text" name="period_key" value="month">
                     <input type="number" name="indicator_to_mo_id" value="227373">
-                    <button id="check_btn">Проверить</button>
                 </form>
+                <button id="check_btn">Проверить</button>
+                <table id="check_tbl"></table>
             </div>
         </div>
 
@@ -51,14 +71,26 @@
             const formData = new FormData(saveFrm);
             const urlEncodedData = new URLSearchParams(formData).toString();
             for (let i = 0; i < parseInt(saveCount.value) ; i++) {
-                fetch(saveFrm.action, {
-                    method: saveFrm.method,
-                    headers: {
-                        "Content-Type": "application/x-www-form-urlencoded"
-                    },
-                    body: urlEncodedData
-                })
+                if (saveFrm.enctype === 'application/x-www-form-urlencoded'){
+                    fetch(saveFrm.action, {
+                        method: saveFrm.method,
+                        headers: {
+                            "Content-Type": "application/x-www-form-urlencoded"
+                        },
+                        body: urlEncodedData
+                    })
+                } else {
+                    fetch(saveFrm.action, {
+                        method: saveFrm.method,
+                        body: formData
+                    })
+                }
             }
+        }
+
+        const enctypeSel = document.getElementById('enctype_sel')
+        enctypeSel.onchange = function (ev) {
+            saveFrm.setAttribute('enctype', ev.target.value)
         }
 
         const bufferSize = document.getElementById('buffer_size')
@@ -66,6 +98,41 @@
         eventSource.onmessage = function(event) {
             bufferSize.textContent = event.data
         }
+
+        const checkFrm = document.getElementById('check_frm')
+        const checkBtn = document.getElementById('check_btn')
+        const checkTbl = document.getElementById('check_tbl')
+        checkBtn.onclick = function () {
+            const formData = new FormData(checkFrm);
+            const urlEncodedData = new URLSearchParams(formData).toString();
+            fetch(checkFrm.action, {
+                method: checkFrm.method,
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: urlEncodedData
+            }).then(response => {
+                if (!response.ok) throw new Error(`Status ${response.status}`)
+                return response.json()
+            }).then(j => {
+                console.log(j)
+                if (j.STATUS !== 'OK') throw new Error(`Status: ${j.STATUS}`)
+                checkTbl.innerHTML = ''
+                for (const row of j.DATA.rows) {
+                    const tr = document.createElement('tr')
+                    const timeTd = document.createElement('td')
+                    timeTd.textContent = row.post_time
+                    tr.appendChild(timeTd)
+                    const commentTd = document.createElement('td')
+                    commentTd.textContent = row.comment
+                    tr.appendChild(commentTd)
+                    checkTbl.appendChild(tr)
+                }
+            }).catch(e => {
+                alert(e.toString())
+            })
+        }
+
 
     </script>
     </body>
