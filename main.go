@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const VERSION = `1.0`
+const VERSION = `1.0.1`
 
 var (
 	ErrorLog = log.New(os.Stderr, `error#`, log.Lshortfile)
@@ -49,10 +49,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	core := NewCore(new(LinkedListBuffer), *saveFactDomain, *bearer, *saveFactInterval)
+	core := NewCore(new(LinkedListBuffer), *saveFactDomain, *bearer, *saveFactInterval) // создаем контроллер, гдя вся логика. Передаём ему интерфейс буфера, и прочие параметры.
 
 	server := http.Server{Addr: *listen}
-	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) { // хэндлер для тестирования, если не хотим сразу отправлять данные на сервер назначения
 		DebugLog.Printf("%s %s %s '%s'", r.RemoteAddr, r.Method, r.RequestURI, r.UserAgent())
 		DebugLog.Printf("Content-Type: %s", r.Header.Get("Content-Type"))
 		DebugLog.Printf("Authorization: %s", r.Header.Get("Authorization"))

@@ -70,7 +70,7 @@ func (core *Core) getFactsHttpHandler(w http.ResponseWriter, r *http.Request) {
 // Основной http-хэндлер, который получает запрос от клиента, добавляет его в буффер, и вызывает цикл пересылки.
 func (core *Core) httpHandler(w http.ResponseWriter, r *http.Request) {
 	DebugLog.Printf("%s %s %s '%s'", r.RemoteAddr, r.Method, r.RequestURI, r.UserAgent())
-	if r.RequestURI == `/` {
+	if r.Method == http.MethodGet && r.RequestURI == `/` { // возвращаем index.html если запрос пришел на / с методом GET
 		w.Write(indexHtml)
 		return
 	}
@@ -143,18 +143,18 @@ func (core *Core) resendLoop() {
 				}
 			}()
 
-			data := core.Buffer.GetFirst()
-			if data == nil {
+			data := core.Buffer.GetFirst() // берём первый (самый старый) элемент из буффера
+			if data == nil {               // если элемент nil - знчит буфер пуст, выходим
 				core.resendLoopStarted = false
 				DebugLog.Println("Finishing resend loop")
 				return
 			}
-			if err := core.resend(data); err != nil {
+			if err := core.resend(data); err != nil { // пытаемся переслать запрос. Если неудача - ждем секунду, и пробуем снова
 				time.Sleep(time.Second)
 				continue // к сожалению, в данной реализации, мы залипнем, если у нас окажется набор данных, который никогда не сможет принять получатель
 			}
-			core.Buffer.RemoveFirst()
-			time.Sleep(core.SaveFactInterval)
+			core.Buffer.RemoveFirst()         // удаляем первый элемент в буфере
+			time.Sleep(core.SaveFactInterval) // опционально, можем делать задержку между отправкой данных на сервер назначения
 		}
 	}()
 }

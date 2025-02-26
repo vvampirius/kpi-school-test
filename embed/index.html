@@ -103,6 +103,7 @@
         const checkBtn = document.getElementById('check_btn')
         const checkTbl = document.getElementById('check_tbl')
         checkBtn.onclick = function () {
+            checkTbl.innerHTML = '<tr><td><progress></progress></td></tr>'
             const formData = new FormData(checkFrm);
             const urlEncodedData = new URLSearchParams(formData).toString();
             fetch(checkFrm.action, {

@@ -43,7 +43,7 @@ func (llb *LinkedListBuffer) RemoveFirst() {
 	}
 	llb.mu.Lock()
 	defer llb.mu.Unlock()
-	llb.First = llb.First.next
+	llb.First = llb.First.next // берём ссылку на последующий элемент из первого, и заменяем её первый элемент
 	if llb.First == nil {
 		llb.Last = nil // если нет первого, то значит нет и последнего
 	}
